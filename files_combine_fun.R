@@ -5,8 +5,9 @@ if (!require("pacman")) install.packages("pacman")
 library(pacman)
 p_load(tidyverse,readxl,magrittr,gtools,stringr)
 #clone this repo to keep data updated; fetch to refresh: https://github.com/CSSEGISandData/COVID-19
-directory <- paste0("C:/Users/",Sys.info()["login"],"/Documents/GitHub/covid-19/COVID-19/csse_covid_19_data/csse_covid_19_daily_reports/")
-
+#directory <- paste0("C:/Users/",Sys.info()["login"],"/Documents/GitHub/covid-19/COVID-19/csse_covid_19_data/csse_covid_19_daily_reports/")
+##personal computer version (github storage is not on C:/)
+directory <- paste0("D:/GitHub/covid-19/COVID-19/csse_covid_19_data/csse_covid_19_daily_reports")
 # Define function to read and combine ####
 combine <- function(directory) {
   ## 'directory' is a char vector of len 1 indicating location of CSV files
