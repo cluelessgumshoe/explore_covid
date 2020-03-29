@@ -265,9 +265,9 @@ covid_ctry_date <-  covid_df %>%
 covid_pop_df <- 
   covid_df %>% inner_join(pop_df, by = c("country_region" = "country_name")) %>%
   group_by(country_region, date) %>% 
-  mutate(perc_ctry_new_cnfrm = (sum(new_confirmed)/country_pop2018)*100,
-         perc_ctry_new_rcvrd = (sum(new_recovered)/country_pop2018)*100,
-         perc_ctry_new_dead = (sum(new_deaths)/country_pop2018)*100) %>%
+  mutate(perc_ctry_new_cnfrm = round((sum(new_confirmed)/country_pop2018)*100,8) %>% as.numeric() %>% format(scientific = F),
+         perc_ctry_new_rcvrd = round((sum(new_recovered)/country_pop2018)*100,8) %>% as.numeric() %>% format(scientific = F),
+         perc_ctry_new_dead = round((sum(new_deaths)/country_pop2018)*100,8) %>% as.numeric() %>% format(scientific = F)) %>%
   ungroup() %>%
   left_join(covid_ctry_date, by = c("country_region","date"))
 
