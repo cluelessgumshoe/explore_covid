@@ -36,39 +36,39 @@ covid_df <- covid %>%
          country_region = as_factor(country_region),
          lat = ifelse(is.na(Lat),Latitude,Lat),
          lon = ifelse(is.na(Long_),Longitude,Long_),
-         `Last Update` = substr(`Last Update`,1,10),
-         `Last Update2`= `Last Update`,
-         `Last Update` = as.Date(`Last Update`,'%m/%d/%y'),
-         `Last Update2`=  as.Date(`Last Update2`,'%Y-%m-%d'),
-         `Last Update` = ifelse(is.na(`Last Update`),`Last Update2`,`Last Update`),
-         Last_Update2 = Last_Update,
-         Last_Update = as.Date(Last_Update,'%m/%d/%y'),
-         Last_Update2 = as.Date(Last_Update2,'%Y-%m-%d'),
-         Last_Update = ifelse(is.na(Last_Update),Last_Update2,Last_Update),
-         date = ifelse(is.na(Last_Update),`Last Update`,Last_Update),
-         date = as_date(date)
+         date = str_extract(path,"[:digit:]{2}-{1}[:digit:]{2}.+.csv$") %>% str_remove(".csv"),
+         date = as.Date(date,'%m-%d-%Y')
          ) %>%
   select(-`Province/State`,-Province_State,-`Country/Region`,-Country_Region,
-         -Lat,-Latitude,-Long_,-Longitude,-`Last Update`,-Last_Update,-Last_Update2,-`Last Update2`,
+         -Lat,-Latitude,-Long_,-Longitude,-`Last Update`,-Last_Update,-path,
          -Admin2,-FIPS,-Combined_Key) %>%
   mutate_all(stringr::str_trim) %>%
-  rename(new_confirmed = "Confirmed",
-         new_recovered = "Recovered",
-         new_deaths = "Deaths",
+  rename(confirmed = "Confirmed",
+         recovered = "Recovered",
+         deaths = "Deaths",
          active = "Active") %>% 
-  mutate_at(vars("new_confirmed","new_recovered","new_deaths","active","lat","lon"),.funs = as.numeric) %>% 
+  mutate_at(vars("confirmed","recovered","deaths","active","lat","lon"),.funs = as.numeric) %>% 
   mutate(#confirmed = zoo::na.locf(confirmed, fromLast = TRUE),
          #recovered = zoo::na.locf(recovered, fromLast = TRUE),
-         new_confirmed = replace_na(new_confirmed,0),
-         new_recovered = replace_na(new_recovered,0),
-         new_deaths = replace_na(new_deaths,0),
+         confirmed = replace_na(confirmed,0),
+         recovered = replace_na(recovered,0),
+         deaths = replace_na(deaths,0),
          active = replace_na(active,0)) %>%
-  mutate(new_confirmed = abs(as.numeric(new_confirmed)),
-         new_recovered = abs(as.numeric(new_recovered)),
-         new_deaths = abs(as.numeric(new_deaths))) %>%
+  mutate(confirmed = abs(as.numeric(confirmed)),
+         recovered = abs(as.numeric(recovered)),
+         deaths = abs(as.numeric(deaths)),
+         new_confirmed = confirmed - lag(confirmed, default=0),
+         new_recovered = recovered - lag(recovered, default=0),
+         new_deaths = deaths - lag(deaths, default=0)) %>%
+  group_by(country_region,province_state,date) %>%
+  mutate(total_infect = sum(confirmed,recovered,deaths),
+         deaths_rate = (sum(deaths)/total_infect)*100,
+         deaths_rate = ifelse(is.nan(deaths_rate),0,deaths_rate)) %>%
+  ungroup() %>%
+  #This can be useful to make a way to display dates on axis my month and year
          #date_day = str_extract(date,"[:digit:][:digit:]$"),
          #date_mon = format(as.Date(.$date,format="%Y-%m-%d"), format = "%b")) %>%
-    arrange(lubridate::as_date(date)) %>%
+  arrange(date) %>%
   ##city clean-up for lat and lon
 mutate(lat = case_when(country_region == "Ivory Coast" ~ 7.5400,
           province_state == "Ashland, NE" ~ 43.9654,
@@ -98,6 +98,7 @@ mutate(lat = case_when(country_region == "Ivory Coast" ~ 7.5400,
                                     country_region == "Viet Nam" ~ "Vietnam",
                                     country_region == "Russian Federation" ~ "Russia",
                                     TRUE ~ country_region),
+       date = as_date(date)
     ) %>%
   #Unable to determine origin locations for cruise ships, going to not include these for right now
   filter(country_region %not_in% c("Cruise Ship","Diamond Princess")) 
@@ -114,6 +115,7 @@ covid_df %<>%
   mutate(lat = ifelse(is.na(lat),lat2,lat),
          lon = ifelse(is.na(lon),lon2,lon)) %>%
   select(-lat2,-lon2)
+
 
 #rm(covid)
 ##########################################################################################
@@ -217,32 +219,32 @@ pop_df <- pop %>%
 ##the biggest thing is weeding through the summary values also included in that data set (e.g. European Union vs. countries within)
 #
 #list all pop regions for reference
-pop_name <-  pop_df %>% select(country_name) %>% distinct() %>% arrange(country_name)
-
-#find out where the countries need match, ~100 do not match
-pop_no_match <- pop_df %>% #these  don't match
-  select(country_name) %>%
-  distinct() %>%
-  anti_join(covid_df, by = c("country_name" = "country_region"))
-
-#what does match?
-pop_match <- pop_df %>%
-  select(country_name) %>%
-  distinct() %>%
-  anti_join(pop_no_match, by = "country_name")
-
-#list all for reference
-covid_name <-  covid_df %>% select(country_region) %>% distinct() %>% arrange(country_region)
-  
-#covid no match
-covid_no_match <-  covid_name %>%
-  anti_join(pop_name, by = c("country_region" = "country_name"))
-
-#covid yes match
-covid_match <-  covid_name %>%
-  anti_join(covid_no_match, by = c("country_region"))
-
-rm(list = c("pop_name","pop_no_match","pop_match","covid_name","covid_no_match","covid_match"))
+# pop_name <-  pop_df %>% select(country_name) %>% distinct() %>% arrange(country_name)
+# 
+# #find out where the countries need match, ~100 do not match
+# pop_no_match <- pop_df %>% #these  don't match
+#   select(country_name) %>%
+#   distinct() %>%
+#   anti_join(covid_df, by = c("country_name" = "country_region"))
+# 
+# #what does match?
+# pop_match <- pop_df %>%
+#   select(country_name) %>%
+#   distinct() %>%
+#   anti_join(pop_no_match, by = "country_name")
+# 
+# #list all for reference
+# covid_name <-  covid_df %>% select(country_region) %>% distinct() %>% arrange(country_region)
+#   
+# #covid no match
+# covid_no_match <-  covid_name %>%
+#   anti_join(pop_name, by = c("country_region" = "country_name"))
+# 
+# #covid yes match
+# covid_match <-  covid_name %>%
+#   anti_join(covid_no_match, by = c("country_region"))
+# 
+# rm(list = c("pop_name","pop_no_match","pop_match","covid_name","covid_no_match","covid_match"))
 
 ########################################################################################################
 #
@@ -265,18 +267,26 @@ covid_ctry_date <-  covid_df %>%
 covid_pop_df <- 
   covid_df %>% inner_join(pop_df, by = c("country_region" = "country_name")) %>%
   group_by(country_region, date) %>% 
-  mutate(perc_ctry_new_cnfrm = round((sum(new_confirmed)/country_pop2018)*100,8) %>% as.numeric() %>% format(scientific = F),
-         perc_ctry_new_rcvrd = round((sum(new_recovered)/country_pop2018)*100,8) %>% as.numeric() %>% format(scientific = F),
-         perc_ctry_new_dead = round((sum(new_deaths)/country_pop2018)*100,8) %>% as.numeric() %>% format(scientific = F)) %>%
+  mutate(perc_ctry_cnfrm = round((sum(confirmed)/country_pop2018)*100,8) %>% as.numeric() %>% format(scientific = F),
+         perc_ctry_rcvrd = round((sum(recovered)/country_pop2018)*100,8) %>% as.numeric() %>% format(scientific = F),
+         perc_ctry_dead = round((sum(deaths)/country_pop2018)*100,8) %>% as.numeric() %>% format(scientific = F),
+         perc_pop_infect = round((total_infect/country_pop2018)*100,8) %>% as.numeric() %>% format(scientific = F)) %>%
   ungroup() %>%
-  left_join(covid_ctry_date, by = c("country_region","date"))
+  left_join(covid_ctry_date, by = c("country_region","date")) %>%
+  distinct() #%>%
+  #gather(case_type,n_cases,confirmed:recovered) %>%
+  #mutate(n_cases = as.numeric(n_cases))
+feather::write_feather(covid_pop_df,"explore_covid/data/covid_pop.feather")
+write_csv(covid_pop_df,"explore_covid/data/covid_pop.csv")
 
+
+# - DRAFTS ONLY - need tweaked for each use - (e.g. gathered above vs of below etc. )
 ########################################################################################################
 # Get some ideas for visuals
 ########################################################################################################
 
 #######################################################################################################
-# case type vs day of virus
+# case type vs date
 
 fun_bar <- function(df,x_var,y_var,color_var,color_varName,stacked=T,horizontal=F,...) {
   
@@ -292,83 +302,78 @@ fun_bar <- function(df,x_var,y_var,color_var,color_varName,stacked=T,horizontal=
     layout(
       barmode = ifelse(stacked,'stack','group'),
       orientation = ifelse(horizontal,'h','v'),    
-      title = paste0("COVID-19 Cases by ",color_varName," for the WORLD"),
-      xaxis = list(title = "Virus Day (e.g. 1 = first day in a country/region)", tickangle = 45),
+      title = paste0("COVID-19 Cases by ",color_varName," (Cumulative)"),
+      xaxis = list(title = "Date", tickangle = 45),
       yaxis = list(title = "Cases")
     )
 }
 
-covid_pop_v1 <- covid_pop_df %>% group_by(country_region,day_virus) %>%  gather(case_type,n_cases,new_confirmed:new_recovered) 
-fun_bar(covid_pop_v1,covid_pop_v1$day_virus,covid_pop_v1$n_cases,covid_pop_v1$case_type,"Virus Day",stacked = F)
+covid_v1 <- covid_df %>% 
+  gather(case_type,n_cases,confirmed:recovered) %>%
+  mutate(n_cases = as.numeric(n_cases)) %>%
+  group_by(date,case_type) %>%
+  #filter(country_region == "US") %>%
+  summarise(n_cases = sum(n_cases)) %>%
+  distinct()
+
+
+fun_bar(covid_v1,covid_v1$date,covid_v1$n_cases,covid_v1$case_type,"Date",stacked = F)
+
 
 
 #######################################################################################################
-# perc pop vs day of virus
-# wow need to check this data some more, but this appears to show when test results started coming in rapidly ~day 45?
+# perc pop  - latest date
 
-fun_bar <- function(df,x_var,y_var,color_var,color_varName,stacked=T,horizontal=F,...) {
+fun_bar3 <- function(df,x_var,y_var,color_var,color_varName,stacked=T,horizontal=F,...) {
   
   library(magrittr)
   plot_ly(
     x = ~x_var,
     y = ~y_var,
     color = ~as.character(color_var),
-    colors = colorRamp(list("blue2","green3","red"))
-    
+    colors = c("blue2","red","green2","yellow")
   ) %>%
     add_bars() %>%
     layout(
       barmode = ifelse(stacked,'stack','group'),
       orientation = ifelse(horizontal,'h','v'),    
-      title = paste0("COVID-19 Cases by ",color_varName," for the WORLD"),
-      xaxis = list(title = "Virus Day (e.g. 1 = first day in a country/region)", tickangle = 45),
-      yaxis = list(title = "Cases")
+      title = paste0("COVID-19 by ",color_varName),
+      xaxis = list(title = "", tickangle = 45),
+      yaxis = list(title = "Percent")
     )
 }
 
-covid_pop_v2 <- covid_pop_df %>% group_by(country_region,day_virus) %>%  gather(case_type,perc_cases,perc_ctry_new_cnfrm:perc_ctry_new_dead)  
-fun_bar(covid_pop_v2,covid_pop_v2$day_virus,covid_pop_v2$perc_cases,covid_pop_v2$case_type,"% of Country Population (2018)",stacked = F)
+covid_pop_v2 <- covid_pop_df %>% group_by(country_region,day_virus) %>%  gather(case_type,perc_cases,perc_ctry_cnfrm:perc_pop_infect) %>% 
+  select(country_region, day_virus,perc_cases,case_type) %>% 
+  filter(country_region %in% c("US","Italy","China","Germany")) %>% 
+  mutate(perc_cases = as.numeric(perc_cases)) %>%
+  group_by(country_region) %>%
+  filter(day_virus == max(day_virus)) %>%
+  distinct()
 
-
-#######################################################################################################
-# 
-
+fun_bar3(covid_pop_v2,covid_pop_v2$country_region,covid_pop_v2$perc_cases,covid_pop_v2$case_type,"% of Country Population (2018)",stacked = F)
 
 
 #######################################################################################################
 # MAPS MAPS MAPS
 #######################################################################################################
 
-
-
 #######################################################################################################
 # map of confirmed status vs time - this could be a neat viz to have slider bar for in shiny
-covid_pop_v1 %<>% filter(!is.na(lat))
-sf_covid_pop <- st_as_sf(covid_pop_v1, coords = c("lon", "lat"), crs = 4326)
+map_pop <- covid_pop_df %>% select(country_region,province_state,perc_pop_infect,lat,lon) %>% distinct()
+sf_covid_pop <- st_as_sf(map_pop, coords = c("lon", "lat"), crs = 4326)
 #set the color palette
 mapviewOptions(vector.palette =  viridis::inferno)
 #map with sizes and locations colored by reason buckets
 mapview(sf_covid_pop, legend = F, alpha = 0, burst = T, 
-        width = "2500", align = "center", cex = "n_cases", zcol = "case_type", 
+        width = "2500", align = "center", cex = "perc_pop_infect", 
         map.types = c("CartoDB.DarkMatter","CartoDB.Positron","OpenStreetMap","Esri.WorldImagery","OpenTopoMap"))
-
-#######################################################################################################
-# map of % population vs. case type over time - this could be a neat viz to have slider bar for in shiny
-covid_pop_v2 %<>% filter(!is.na(lat))
-sf_covid_pop <- st_as_sf(covid_pop_v2, coords = c("lon", "lat"), crs = 4326)
-#set the color palette
-mapviewOptions(vector.palette =  viridis::inferno)
-#map with sizes and locations colored by reason buckets
-mapview(sf_covid_pop, legend = F, alpha = 0, burst = T, 
-        width = "2500", align = "center", cex = "perc_cases", zcol = "case_type", 
-        map.types = c("CartoDB.DarkMatter","CartoDB.Positron","OpenStreetMap","Esri.WorldImagery","OpenTopoMap"))
-
 
 #######################################################################################################
 # What order did the virus hit other countries?
 #ok this is scary too, could be cool to render by day
 covid_routes <- covid_pop_df %>%
-  filter(day_virus == 1) %>% 
+  filter(day_virus == 1) %>% #day 1 would be the first day the virus landed in a country
   select(country_region,day_virus,lat,lon) %>% 
   group_by(country_region) %>%
   mutate(lat = mean(lat),
@@ -413,7 +418,10 @@ virus_travel <- ggplot() + map_setup +
 virus_travel
 
 
-
+########################################################################################################
+# glm_us <- glm2::glm2(covid_pop_v1$day_virus ~ covid_pop_v1$n_cases)
+# summary(glm_us)
+# plot(glm_us)
 
 
 
