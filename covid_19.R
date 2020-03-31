@@ -18,6 +18,7 @@ p_load(tidyverse, #general cleaning and piping
 #pop <- read_csv("https://raw.githubusercontent.com/datasets/population/master/data/population.csv")
 #pop %<>% group_by(`Country Name`) %>% filter(Year == max(Year)) %>% ungroup()
 
+
 #population data from 2018!
 pop <- read_csv("explore_covid/data/2018_world_population_data_worldbank.csv", skip = 4)
 pop %<>% select(`Country Name`,"2018")
