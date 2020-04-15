@@ -10,7 +10,7 @@ output:
 
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = F, warning = F, message = F, eval = T, error = F, cache = T)
+knitr::opts_chunk$set(echo = F, warning = F, message = F, eval = T, error = F, cache = F)
 ```
 
 ```{r loads}
@@ -34,6 +34,12 @@ names(flu) = c("year","week","virus","z_4","five_24","twofive_sixfour","sixfive_
 covid_pop_df <- read_feather("data/covid_pop.feather")
 ```
 
+
+<center>
+Erin Wright
+</center>
+
+---
 
 ```{r}
 #format flu data
@@ -79,9 +85,9 @@ rm(flu_df)
 <center>
 ```{r}
 
-fig1 <- plot_ly(covid_flu, x = ~week, y = ~Flu_2019,name = "Influenza (2019)", type = 'scatter', mode = 'lines',line = list(color = 'rgb(132, 132, 130)', width = 2)) 
-fig1 <- fig1 %>% add_trace(y = ~`COVID-19`, name = 'COVID-19 (2020)', mode = 'lines',connectgaps = TRUE,line = list(color = 'rgb(175, 0, 42)', width = 4)) 
-fig1 <- fig1 %>% add_trace(y = ~Flu_2020, name = 'Influenza (2020)', mode = 'lines',line = list(color = 'rgb(0, 72, 186)', width = 4))
+fig1 <- plot_ly(covid_flu, x = ~week, y = ~Flu_2019,name = "Influenza (2019)", type = 'scatter', mode = 'lines',line = list(color = 'grey', width = 2)) 
+fig1 <- fig1 %>% add_trace(y = ~`COVID-19`, name = 'COVID-19 (2020)', mode = 'lines',connectgaps = TRUE,line = list(color = 'red', width = 4)) 
+fig1 <- fig1 %>% add_trace(y = ~Flu_2020, name = 'Influenza (2020)', mode = 'lines',line = list(color = 'blue', width = 4))
 fig1 <- fig1 %>% layout(title = "Confirmed Cases by Week of Year (USA)",
          xaxis = list(title = "Week Number"),
          yaxis = list (title = "# of Confirmed Cases")
@@ -96,8 +102,6 @@ fig1
 # Cause of Death (US)
 
 ## How does the reported COVID-19 data compare to other casues of death?^[Data Source: https://www.cdc.gov/nchs/pressroom/stats_of_the_states.htm]
-
-Consideration must be given to the fact that COVID-19 data only represents a portion of a year whereas the other casuses have all data from 2018 included.  Data was adjusted to represent rates per 100,000 population^[Data Source: https://data.worldbank.org/indicator/sp.pop.totl].
 
 ```{r}
 #read in several more 
@@ -128,17 +132,20 @@ rm(list = c("cancer","diabetes","firearm",
 
 ```
 
+Consideration must be given to the fact that COVID-19 data only represents a portion of a year whereas the other casuses have all data from 2018 included.  Data was adjusted to represent rates per 100,000 population^[Data Source: https://data.worldbank.org/indicator/sp.pop.totl].  To do this the total number of deaths was divided by the number of groups of 100,000 persons present in the population using the 2018 US population estimate of `r paste0(covid_other_deaths$pop2018[1])`.
+
+
 ```{r}
 #COMPARE DEATHS HERE to other death things like cancer etc. 
 fig2 <- plot_ly(covid_other_deaths, x = ~cause, y = ~deaths_rate,name = "Deaths per 100,000 people", type = 'bar', mode = 'group',
                             marker = list(color = c(
-                                    "rgb(0, 72, 186)",
-                                    "rgb(132, 132, 130)",
-                                    "rgb(132, 132, 130)",
-                                    "rgb(132, 132, 130)",
-                                    "rgb(132, 132, 130)",
-                                    "rgb(132, 132, 130)",
-                                    "rgb(132, 132, 130)")))
+                                    "blue",
+                                    "grey",
+                                    "grey",
+                                    "grey",
+                                    "grey",
+                                    "grey",
+                                    "grey")))
 fig2 <- fig2 %>% layout(title = "Deaths per 100,000 people (US)",
         xaxis = list(title = "Cause"),
         yaxis = list (title = "Death Rate"))
@@ -148,6 +155,59 @@ fig2 <- fig2 %>% layout(title = "Deaths per 100,000 people (US)",
 <center>
 ```{r}
 fig2
+```
+</center>
+
+Since COVID-19 has been accumulating over less than a year, what if we calculate the death rate using both population and days accumulating? So if we take the death rate calculated above then multiply by the fraction of a year represented by the data, it might be closer to a far comparison;*for other than COVID-19 this would be just 1, for COVID-19 this would be 365 divided by virus days passed.*
+
+```{r}
+cancer <- read_csv("data/cdc_data/cancer_mortality_state.csv", skip = 2) %>% filter(YEAR == max(YEAR)) %>% select(-URL) %>% summarise(deaths = sum(DEATHS),cause = "Cancer",day_virus = 365)
+firearm <- read_csv("data/cdc_data/firearm_mortality_state.csv", skip = 2) %>% filter(YEAR == max(YEAR)) %>% select(-URL)%>% summarise(deaths = sum(DEATHS),cause = "Firearms",day_virus = 365)
+diabetes <- read_csv("data/cdc_data/diabetes_mortality_state.csv", skip = 2) %>% filter(YEAR == max(YEAR)) %>% select(-URL)%>% summarise(deaths = sum(DEATHS),cause = "Diabetes",day_virus = 365)
+heart_dis <- read_csv("data/cdc_data/heart_disease_mortality_state.csv", skip = 2) %>% filter(YEAR == max(YEAR)) %>% select(-URL)%>% summarise(deaths = sum(DEATHS),cause = "Heart Disease",day_virus = 365)
+flu_pne <- read_csv("data/cdc_data/influenza_pneumonia_mortality_state.csv", skip = 2) %>% filter(YEAR == max(YEAR)) %>% select(-URL)%>% summarise(deaths = sum(DEATHS),cause = "Flu/Pneumonia",day_virus = 365)
+suicide <- read_csv("data/cdc_data/suicide_mortality_state.csv", skip = 2) %>% filter(YEAR == max(YEAR)) %>% select(-URL)%>% summarise(deaths = sum(DEATHS),cause = "Suicide",day_virus = 365)
+
+
+covid_other_deaths2 <- covid_pop_df %>% 
+  filter(country_region == "US") %>%
+  mutate(deaths = max(ctry_deaths),
+            cause = "COVID-19",
+            pop2018 = country_pop2018) %>%
+  select(deaths,cause,pop2018,day_virus) %>%
+  filter(day_virus == max(day_virus)) %>%
+  distinct()%>% 
+  union_all(cancer) %>%
+  union_all(firearm) %>%
+  union_all(diabetes) %>%
+  union_all(heart_dis) %>%
+  union_all(flu_pne) %>%
+  union_all(suicide) %>%
+  mutate(pop2018 = na.locf(pop2018,fromLast = TRUE),
+         deaths_rate = (deaths/(pop2018/100000))*(365/day_virus))
+
+rm(list = c("cancer","diabetes","firearm",
+            "heart_dis","flu_pne","suicide"))
+
+```
+
+<center>
+```{r}
+#COMPARE DEATHS HERE to other death things like cancer etc. 
+fig2_2 <- plot_ly(covid_other_deaths2, x = ~cause, y = ~deaths_rate,name = "", type = 'bar', mode = 'group',
+                            marker = list(color = c(
+                                    "blue",
+                                    "grey",
+                                    "grey",
+                                    "grey",
+                                    "grey",
+                                    "grey",
+                                    "grey")))
+fig2_2 <- fig2_2 %>% layout(title = "Deaths Rate per 100,000 people (US) for Days Accumulated",
+        xaxis = list(title = "Cause"),
+        yaxis = list (title = "Death Rate"))
+
+fig2_2
 ```
 </center>
 
@@ -206,7 +266,7 @@ ggplotly(virus_travel)
 </center>
 
 
-## How did it spread
+## Where did it spread
 
 This gets a little busy, but is still very neat to look at; if we take the first location the virus is known to have landed (confirmed cases) in each country, and follow it country:country we get this:
 
@@ -216,22 +276,78 @@ virus_travel
 ```
 </center>
 
+
+
+# How fast did it spread?
+
+Day of Virus represents the first day a reported case is docuemnted for each country listed.
+
+```{r}
+covid_pop_v1 <- covid_pop_df %>% 
+  select(country_region, day_virus,perc_ctry_cnfrm) %>% 
+  filter(country_region %in% c("US","Italy","China","Germany","Switzerland","Ireland","Sweden","United Kingdom")) %>% 
+  mutate(row_id = row_number(),
+         perc_ctry_cnfrm = as.numeric(perc_ctry_cnfrm)) %>%
+  group_by(day_virus) %>%
+  spread(country_region,perc_ctry_cnfrm) %>%
+  select(-row_id) %>%
+  distinct() %>%
+  mutate_all(as.numeric)
+
+CH = covid_pop_v1 %>% select(day_virus,China) %>% filter(!is.na(China))
+G = covid_pop_v1 %>% select(day_virus,Germany) %>% filter(!is.na(Germany))
+IT = covid_pop_v1 %>% select(day_virus,Italy) %>% filter(!is.na(Italy))
+IR = covid_pop_v1 %>% select(day_virus,Ireland) %>% filter(!is.na(Ireland))
+ST = covid_pop_v1 %>% select(day_virus,Switzerland) %>% filter(!is.na(Switzerland))
+SW = covid_pop_v1 %>% select(day_virus,Sweden) %>% filter(!is.na(Sweden))
+UK = covid_pop_v1 %>% select(day_virus,`United Kingdom`) %>% filter(!is.na(`United Kingdom`))
+US = covid_pop_v1 %>% select(day_virus,US) %>% filter(!is.na(US))
+
+covid_pop_v1 <- CH %>%
+  full_join(G,by = "day_virus") %>%
+  full_join(IT,by = "day_virus") %>%
+  full_join(IR,by = "day_virus") %>%
+  full_join(ST,by = "day_virus") %>%
+  full_join(SW,by = "day_virus") %>%
+  full_join(UK,by = "day_virus") %>%
+  full_join(US,by = "day_virus") 
+```
+
+
+<center>
+```{r}
+# thinking to put line chart with lines for each country, but day and maybe y = confirmed cases
+
+fig3 <- plot_ly(covid_pop_v1, x = ~day_virus, y = ~China,name = "China", type = 'scatter', mode = 'line',line = list(color = 'black', width = 2))
+fig3 <- fig3 %>% add_trace(y = ~Germany, name = "Germany", mode = 'line',line = list(color = 'yellow', width = 2))
+fig3 <- fig3 %>% add_trace(y = ~Ireland, name = "Ireland", mode = 'line',line = list(color = 'orange', width = 2))
+fig3 <- fig3 %>% add_trace(y = ~Italy, name = "Italy", mode = 'line',line = list(color = 'green', width = 2))
+fig3 <- fig3 %>% add_trace(y = ~Sweden, name = "Sweden", mode = 'line',line = list(color = 'red', width = 2))
+fig3 <- fig3 %>% add_trace(y = ~Switzerland, name = "Switzerland", mode = 'line',line= list(color = 'pink', width = 2))
+fig3 <- fig3 %>% add_trace(y = ~`United Kingdom`, name = "United Kingdom", mode = 'line',line= list(color = 'purple', width = 2))
+fig3 <- fig3 %>% add_trace(y = ~US, name = "United States", mode = 'line',line = list(color = 'blue', width = 2))
+fig3 <- fig3 %>% layout(title = "Confirmed Cases by Virus Day",
+                  xaxis = list(title = "Day of Virus"),
+                  yaxis = list (title = "# of Confirmed Cases"))
+
+fig3
+```
+</center>
+
 # Country Populations
 
 ## How does the reported COVID-19 data compare across the globe?
 
 When taking into account the overall population of each of the following countries, what is the impact for each?^[Data Source: https://data.worldbank.org/indicator/sp.pop.totl].
 
+
 ```{r}
-covid_pop_v2 <- covid_pop_df %>% 
-  group_by(country_region) %>%
-  arrange(desc(ctry_cnfrm)) %>% 
-  group_by(country_region,day_virus) %>%
-  gather(case_type,perc_cases,perc_ctry_cnfrm:perc_ctry_dead) %>% 
+covid_pop_v2 <- covid_pop_df %>% group_by(country_region,day_virus) %>%  gather(case_type,perc_cases,perc_ctry_cnfrm:perc_ctry_dead) %>% 
   select(country_region, day_virus,perc_cases,case_type) %>% 
   filter(country_region %in% c("US","Italy","China","Germany","Switzerland","Ireland","Sweden","United Kingdom")) %>% 
   mutate(perc_cases = as.numeric(perc_cases)) %>%
   group_by(country_region) %>%
+  filter(day_virus == max(day_virus)) %>%
   distinct()
 ```
 
@@ -245,7 +361,7 @@ fun_bar3 <- function(df,x_var,y_var,color_var,color_varName,stacked=T,horizontal
     x = ~x_var,
     y = ~y_var,
     color = ~as.character(color_var),
-    colors = c("blue","darkred","seagreen4")
+    colors = c("blue","red","green")
   ) %>%
     add_bars() %>%
     layout(
@@ -262,13 +378,127 @@ fun_bar3(covid_pop_v2,covid_pop_v2$country_region,covid_pop_v2$perc_cases,covid_
 ```
 </center>
 
+
+```{r}
+#age data
+cia_med_age <- read_table("https://www.cia.gov/library/publications/the-world-factbook/rankorder/rawdata_2177.txt",col_names = F, skip = 1)
+names(cia_med_age) = c("row_id","country","country2","country3","age")
+cia_med_age <- cia_med_age %>% 
+  mutate(country = paste0(country," ",country2," ",country3) %>% str_trim()) %>%
+  select(country,age) %>%
+  filter(country %in% c("United States","Italy","China","Germany","Switzerland","Ireland","Sweden","United Kingdom")) %>%
+  mutate( country = recode(country,"United States" = "US")) %>%
+  distinct() %>%
+  arrange(country)
+  
+
+```
+
+## What about age?^[Data Source: https://www.cia.gov/library/publications/the-world-factbook/]
+
+```{r}
+covid_pop_v3 <- covid_pop_df %>% 
+  select(country_region, day_virus,perc_ctry_dead) %>% 
+  filter(country_region %in% c("US","Italy","China","Germany","Switzerland","Ireland","Sweden","United Kingdom")) %>% 
+  mutate(row_id = row_number(),
+         perc_ctry_dead = as.numeric(perc_ctry_dead)) %>%
+  group_by(day_virus) %>%
+  spread(country_region,perc_ctry_dead) %>%
+  select(-row_id) %>%
+  distinct() %>%
+  mutate_all(as.numeric)
+
+CH = covid_pop_v3 %>% select(day_virus,China) %>% filter(!is.na(China))
+G = covid_pop_v3 %>% select(day_virus,Germany) %>% filter(!is.na(Germany))
+IT = covid_pop_v3 %>% select(day_virus,Italy) %>% filter(!is.na(Italy))
+IR = covid_pop_v3 %>% select(day_virus,Ireland) %>% filter(!is.na(Ireland))
+ST = covid_pop_v3 %>% select(day_virus,Switzerland) %>% filter(!is.na(Switzerland))
+SW = covid_pop_v3 %>% select(day_virus,Sweden) %>% filter(!is.na(Sweden))
+UK = covid_pop_v3 %>% select(day_virus,`United Kingdom`) %>% filter(!is.na(`United Kingdom`))
+US = covid_pop_v3 %>% select(day_virus,US) %>% filter(!is.na(US))
+
+covid_pop_v3 <- CH %>%
+  full_join(G,by = "day_virus") %>%
+  full_join(IT,by = "day_virus") %>%
+  full_join(IR,by = "day_virus") %>%
+  full_join(ST,by = "day_virus") %>%
+  full_join(SW,by = "day_virus") %>%
+  full_join(UK,by = "day_virus") %>%
+  full_join(US,by = "day_virus") 
+
+```
+
+
+<center>
+```{r}
+# thinking to put line chart with lines for each country, but day and maybe y = confirmed cases
+
+fig4 <- plot_ly(covid_pop_v3, x = ~day_virus, y = ~China,name = "China", type = 'scatter',mode = 'line',line = list(color = 'black', width = 2))
+fig4 <- fig4 %>% add_trace(y = ~Germany, name = "Germany", mode =  'line',line = list(color = 'yellow', width = 2))
+fig4 <- fig4 %>% add_trace(y = ~Ireland, name = "Ireland", mode = 'line',line = list(color = 'orange', width = 2))
+fig4 <- fig4 %>% add_trace(y = ~Italy, name = "Italy", mode = 'line',line = list(color = 'green', width = 2))
+fig4 <- fig4 %>% add_trace(y = ~Sweden, name = "Sweden", mode = 'line',line = list(color = 'red', width = 2))
+fig4 <- fig4 %>% add_trace(y = ~Switzerland, name = "Switzerland", mode = 'line',line = list(color = 'pink', width = 2))
+fig4 <- fig4 %>% add_trace(y = ~`United Kingdom`, name = "United Kingdom", mode = 'line',line = list(color = 'purple', width = 2))
+fig4 <- fig4 %>% add_trace(y = ~US, name = "United States", mode = 'line',line = list(color = 'blue', width = 2))
+
+subfig4 <- plot_ly(
+  type = 'table',
+  domain = list(x=c(0,0.3), y=c(0.3,0.3)),
+  header = list(values = c("country", "age")),
+  cells = list(values = rbind(cia_med_age$country,cia_med_age$age))
+)
+
+fig4 <- fig4 %>% layout(title = "Deaths by Virus Day for % Country Population (Median Country Age shown in table)",
+                  xaxis = list(title = "Day of Virus"),
+                  yaxis = list (title = "# of Deaths"),
+                  yaxis2 = list(overlaying = "y", side = "right"))
+
+subplot(fig4, subfig4) %>%
+  layout(xaxis = list(domain=c(0.75,0.5)),
+         xaxis2 = list(domain=c(0,0.5)))
+
+```
+</center>
+
+### Is the country median age related to the total cumulative deaths for % country population?
+
+<center>
+```{r}
+covid_pop_v4 <- covid_pop_df %>% 
+  select(country_region, perc_ctry_dead) %>% 
+  filter(country_region %in% c("US","Italy","China","Germany","Switzerland","Ireland","Sweden","United Kingdom")) %>% 
+  mutate(perc_ctry_dead = as.numeric(perc_ctry_dead)) %>%
+  rename(country = "country_region") %>%
+  group_by(country) %>%
+  filter(perc_ctry_dead == max(perc_ctry_dead)) %>%
+  mutate(perc_ctry_dead = log(perc_ctry_dead)) %>%
+  distinct() %>%
+  mutate_all(as.numeric) %>%
+  left_join(cia_med_age,by = "country") %>%
+  mutate(age = log(age))
+  
+fig5 <- plot_ly(covid_pop_v4, x = ~perc_ctry_dead, y = ~age, type = 'scatter',mode = 'markers', color = ~country,colors = c("black","yellow","orange","green","red","pink","purple","blue"))
+fig5 <- fig5 %>% layout(title = "Age vs % Total Population Dead",
+                  xaxis = list(title = "log(% dead)"),
+                  yaxis = list (title = "log(age)"),
+                  yaxis2 = list(overlaying = "y", side = "right"))
+fig5 
+```
+</center>
+
+
+
 # Credits
 
 I used these sources to build the graphics in this report:
 
 * Maps: https://rstudio-pubs-static.s3.amazonaws.com/259095_2f8cb24b43284692a8af916bd447931d.html
 * Plotly in R: https://plotly.com/r/line-charts/ 
+* Sub Plots: https://stackoverflow.com/questions/56267164/r-plotly-subplot-with-table
 
 <div style="position: fixed; bottom: 15px; right:10px;">
   <div id="feedback"><a href="https://github.com/cluelessgumshoe/explore_covid"> <B>SOURCE CODE</B></a></div>
 </div>
+
+<small><i>Report Date: `r Sys.Date()`</i>
