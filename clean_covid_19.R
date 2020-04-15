@@ -66,8 +66,7 @@ covid_df <- covid %>%
          new_recovered = recovered - lag(recovered, default=0),
          new_deaths = deaths - lag(deaths, default=0)) %>%
   group_by(country_region,province_state,date) %>%
-  mutate(total_infect = sum(confirmed,recovered,deaths),
-         deaths_rate = (sum(deaths)/total_infect)*100,
+  mutate(deaths_rate = (sum(deaths)/confirmed)*100,
          deaths_rate = ifelse(is.nan(deaths_rate),0,deaths_rate)) %>%
   ungroup() %>%
   #This can be useful to make a way to display dates on axis my month and year
@@ -368,10 +367,9 @@ covid_pop_df <-
   mutate(perc_ctry_cnfrm = round((sum(confirmed)/country_pop2018)*100,8) %>% as.numeric() %>% format(scientific = F),
          perc_ctry_rcvrd = round((sum(recovered)/country_pop2018)*100,8) %>% as.numeric() %>% format(scientific = F),
          perc_ctry_dead = round((sum(deaths)/country_pop2018)*100,8) %>% as.numeric() %>% format(scientific = F),
-         perc_pop_infect = round((total_infect/country_pop2018)*100,8) %>% as.numeric() %>% format(scientific = F),
          ctry_cnfrm = sum(confirmed),
          ctry_deaths = sum(deaths),
-           deaths_rate_per100tpop = deaths/(country_pop2018/100000) ) %>%
+         deaths_rate_per100tpop = deaths/(country_pop2018/100000) ) %>%
   ungroup() %>%
   left_join(covid_ctry_date, by = c("country_region","date")) %>%
   distinct() #%>%
