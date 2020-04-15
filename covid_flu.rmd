@@ -1,0 +1,274 @@
+---
+title: "COVID-19"
+subtitle: "How does it compare?"
+always_allow_html: yes
+output:
+  prettydoc::html_pretty:
+    theme: tactile
+    highlight: github
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F, warning = F, message = F, eval = T, error = F, cache = T)
+```
+
+```{r loads}
+# Install and load pacman if not already installed
+if (!require("pacman")) install.packages("pacman")
+library(pacman)
+
+p_load(tidyverse,magrittr, #general cleaning and piping
+       stringr, #string manipulation
+       lubridate, #I hate dates
+       feather,#nimble files
+       DataExplorer, #check missings
+       ggplot2,plotly, #gen viz
+       sf,mapview,#maps
+       prettydoc,
+       zoo) #rmd layout
+
+#load data
+flu <- read_csv("data/cdc_data/influenza_VirusViewByWeek.csv")
+names(flu) = c("year","week","virus","z_4","five_24","twofive_sixfour","sixfive_up")
+covid_pop_df <- read_feather("data/covid_pop.feather")
+```
+
+
+```{r}
+#format flu data
+flu_df <- flu %>% 
+  gather(key,value,z_4:sixfive_up) %>%
+  group_by(year,week) %>%
+  summarise(total_flu_cases = sum(value)) %>%
+  ungroup() %>%
+  filter(year >= year(Sys.Date())-1) %>%
+  arrange(year,week) %>%
+  group_by(year) %>%
+  mutate(cum_cases = cumsum(total_flu_cases)) %>%
+  select(-total_flu_cases) %>%
+  spread(year,cum_cases) %>%
+  rename(Flu_2020 = `2020`,
+         Flu_2019 = `2019`)
+#format covid data
+covid_flu <- covid_pop_df %>%
+  filter(country_region == "US") %>%
+  select(ctry_cnfrm,week) %>%
+  mutate(week = as.numeric(week)) %>%
+  group_by(week) %>%
+  mutate(confirmed = max(ctry_cnfrm)) %>%
+  distinct() %>%
+  full_join(flu_df, by = c("week")) %>%
+  arrange(week) %>%
+  #this data looks WRONG so...smoothing it
+  #mutate(confirmed = case_when(week %in% c(13,14) ~ NA_integer_,
+  #                             TRUE ~ as.integer(confirmed))) %>%
+  ungroup() %>%
+  rename(`COVID-19` = ctry_cnfrm) 
+rm(flu_df)
+
+```
+
+
+# Confirmed Cases (US)
+
+## Influenza^[Data Source: https://gis.cdc.gov/grasp/fluview/flu_by_age_virus.html]
+
+### Is the trend of cumulative confirmed *COVID-19*^[Data Source: https://github.com/CSSEGISandData/COVID-19] cases really higher than that of *Influenza*?
+
+<center>
+```{r}
+
+fig1 <- plot_ly(covid_flu, x = ~week, y = ~Flu_2019,name = "Influenza (2019)", type = 'scatter', mode = 'lines',line = list(color = 'rgb(132, 132, 130)', width = 2)) 
+fig1 <- fig1 %>% add_trace(y = ~`COVID-19`, name = 'COVID-19 (2020)', mode = 'lines',connectgaps = TRUE,line = list(color = 'rgb(175, 0, 42)', width = 4)) 
+fig1 <- fig1 %>% add_trace(y = ~Flu_2020, name = 'Influenza (2020)', mode = 'lines',line = list(color = 'rgb(0, 72, 186)', width = 4))
+fig1 <- fig1 %>% layout(title = "Confirmed Cases by Week of Year (USA)",
+         xaxis = list(title = "Week Number"),
+         yaxis = list (title = "# of Confirmed Cases")
+         #paper_bgcolor = 'transparent',
+         #plot_bgcolor = 'transparent',
+         )
+
+fig1
+```
+</center>
+
+# Cause of Death (US)
+
+## How does the reported COVID-19 data compare to other casues of death?^[Data Source: https://www.cdc.gov/nchs/pressroom/stats_of_the_states.htm]
+
+Consideration must be given to the fact that COVID-19 data only represents a portion of a year whereas the other casuses have all data from 2018 included.  Data was adjusted to represent rates per 100,000 population^[Data Source: https://data.worldbank.org/indicator/sp.pop.totl].
+
+```{r}
+#read in several more 
+cancer <- read_csv("data/cdc_data/cancer_mortality_state.csv", skip = 2) %>% filter(YEAR == max(YEAR)) %>% select(-URL) %>% summarise(deaths = sum(DEATHS),cause = "Cancer")
+firearm <- read_csv("data/cdc_data/firearm_mortality_state.csv", skip = 2) %>% filter(YEAR == max(YEAR)) %>% select(-URL)%>% summarise(deaths = sum(DEATHS),cause = "Firearms")
+diabetes <- read_csv("data/cdc_data/diabetes_mortality_state.csv", skip = 2) %>% filter(YEAR == max(YEAR)) %>% select(-URL)%>% summarise(deaths = sum(DEATHS),cause = "Diabetes")
+heart_dis <- read_csv("data/cdc_data/heart_disease_mortality_state.csv", skip = 2) %>% filter(YEAR == max(YEAR)) %>% select(-URL)%>% summarise(deaths = sum(DEATHS),cause = "Heart Disease")
+flu_pne <- read_csv("data/cdc_data/influenza_pneumonia_mortality_state.csv", skip = 2) %>% filter(YEAR == max(YEAR)) %>% select(-URL)%>% summarise(deaths = sum(DEATHS),cause = "Flu/Pneumonia")
+suicide <- read_csv("data/cdc_data/suicide_mortality_state.csv", skip = 2) %>% filter(YEAR == max(YEAR)) %>% select(-URL)%>% summarise(deaths = sum(DEATHS),cause = "Suicide")
+covid_other_deaths <- covid_pop_df %>% 
+  filter(country_region == "US") %>%
+  mutate(deaths = max(ctry_deaths),
+            cause = "COVID-19",
+            pop2018 = country_pop2018) %>%
+  select(deaths,cause,pop2018) %>%
+  distinct() %>%
+  union_all(cancer) %>%
+  union_all(firearm) %>%
+  union_all(diabetes) %>%
+  union_all(heart_dis) %>%
+  union_all(flu_pne) %>%
+  union_all(suicide) %>%
+  mutate(pop2018 = na.locf(pop2018,fromLast = TRUE),
+         deaths_rate = deaths/(pop2018/100000))
+
+rm(list = c("cancer","diabetes","firearm",
+            "heart_dis","flu_pne","suicide"))
+
+```
+
+```{r}
+#COMPARE DEATHS HERE to other death things like cancer etc. 
+fig2 <- plot_ly(covid_other_deaths, x = ~cause, y = ~deaths_rate,name = "Deaths per 100,000 people", type = 'bar', mode = 'group',
+                            marker = list(color = c(
+                                    "rgb(0, 72, 186)",
+                                    "rgb(132, 132, 130)",
+                                    "rgb(132, 132, 130)",
+                                    "rgb(132, 132, 130)",
+                                    "rgb(132, 132, 130)",
+                                    "rgb(132, 132, 130)",
+                                    "rgb(132, 132, 130)")))
+fig2 <- fig2 %>% layout(title = "Deaths per 100,000 people (US)",
+        xaxis = list(title = "Cause"),
+        yaxis = list (title = "Death Rate"))
+
+```
+
+<center>
+```{r}
+fig2
+```
+</center>
+
+# Locations
+
+## Where was the first report in each country?
+
+<center>
+```{r}
+covid_routes <- covid_pop_df %>%
+  filter(day_virus == 1) %>% #day 1 would be the first day the virus landed in a country
+  select(country_region,day_virus,lat,lon) %>% 
+  group_by(country_region) %>%
+  mutate(lat = mean(lat),
+         lon = mean(lon)) %>%
+  distinct() %>% 
+  ungroup() %>%
+  mutate(from_lat = lat,
+         to_lat = lead(from_lat,1),
+         from_lon = lon,
+         to_lon = lead(lon,1),
+         #jitter slightly so that not identical for route map
+         from_lat = jitter(from_lat, factor = 0.1),
+         from_lon = jitter(from_lon, factor = 0.1),
+         to_lat = jitter(to_lat, factor = 0.1),
+         to_lon = jitter(to_lon, factor = 0.1))
+
+#https://rstudio-pubs-static.s3.amazonaws.com/259095_2f8cb24b43284692a8af916bd447931d.html
+map_setup <- borders("world", colour="grey80", fill="grey3")
+virus_travel <- ggplot() + map_setup +
+  geom_curve(data=covid_routes,
+             aes(x=from_lon, y=from_lat, xend=to_lon, yend=to_lat),
+             col="darkblue",
+             size=.5,
+             curvature=0.2) +
+  geom_point(data=covid_routes,
+             aes(x=from_lon, y=from_lat), 
+             colour="blue",
+             size=1.5) +
+  geom_point(data=covid_routes,
+             aes(x=to_lon, y=to_lat), 
+             colour="blue") +
+  theme(axis.line=element_blank(),
+        axis.text.x=element_blank(),
+        axis.text.y=element_blank(),
+        axis.title.x=element_blank(),
+        axis.title.y=element_blank(),
+        axis.ticks=element_blank(),
+        plot.title=element_text(hjust=0.5, size=12)) +
+  ggtitle("COVID-19 First Reported Appearances in Each Country")# +
+#check the min/max of long and lat to get good zoom level if needed or leave out
+#coord_cartesian(ylim=c(10, 75), xlim=c(-160, 70))
+ggplotly(virus_travel)
+
+```
+</center>
+
+
+## How did it spread
+
+This gets a little busy, but is still very neat to look at; if we take the first location the virus is known to have landed (confirmed cases) in each country, and follow it country:country we get this:
+
+<center>
+```{r}
+virus_travel
+```
+</center>
+
+# Country Populations
+
+## How does the reported COVID-19 data compare across the globe?
+
+When taking into account the overall population of each of the following countries, what is the impact for each?^[Data Source: https://data.worldbank.org/indicator/sp.pop.totl].
+
+```{r}
+covid_pop_v2 <- covid_pop_df %>% 
+  group_by(country_region) %>%
+  arrange(desc(ctry_cnfrm)) %>% 
+  group_by(country_region,day_virus) %>%
+  gather(case_type,perc_cases,perc_ctry_cnfrm:perc_ctry_dead) %>% 
+  select(country_region, day_virus,perc_cases,case_type) %>% 
+  filter(country_region %in% c("US","Italy","China","Germany","Switzerland","Ireland","Sweden","United Kingdom")) %>% 
+  mutate(perc_cases = as.numeric(perc_cases)) %>%
+  group_by(country_region) %>%
+  distinct()
+```
+
+
+<center>
+```{r}
+fun_bar3 <- function(df,x_var,y_var,color_var,color_varName,stacked=T,horizontal=F,...) {
+  
+  library(magrittr)
+  plot_ly(
+    x = ~x_var,
+    y = ~y_var,
+    color = ~as.character(color_var),
+    colors = c("blue","darkred","seagreen4")
+  ) %>%
+    add_bars() %>%
+    layout(
+      barmode = ifelse(stacked,'stack','group'),
+      orientation = ifelse(horizontal,'h','v'),    
+      title = paste0("COVID-19 by ",color_varName),
+      xaxis = list(title = "", tickangle = 45),
+      yaxis = list(title = "Percent")
+    )
+}
+
+fun_bar3(covid_pop_v2,covid_pop_v2$country_region,covid_pop_v2$perc_cases,covid_pop_v2$case_type,"% of Country Total Population (2018)",stacked = F)
+
+```
+</center>
+
+# Credits
+
+I used these sources to build the graphics in this report:
+
+* Maps: https://rstudio-pubs-static.s3.amazonaws.com/259095_2f8cb24b43284692a8af916bd447931d.html
+* Plotly in R: https://plotly.com/r/line-charts/ 
+
+<div style="position: fixed; bottom: 15px; right:10px;">
+  <div id="feedback"><a href="https://github.com/cluelessgumshoe/explore_covid"> <B>SOURCE CODE</B></a></div>
+</div>
