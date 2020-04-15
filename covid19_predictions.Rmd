@@ -1,0 +1,81 @@
+---
+title: "COVID-19"
+subtitle: "Did predictions change?"
+always_allow_html: yes
+output:
+  prettydoc::html_pretty:
+    theme: tactile
+    highlight: github
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F, warning = F, message = F, eval = T, error = F, cache = F)
+```
+
+```{r loads}
+# Install and load pacman if not already installed
+if (!require("pacman")) install.packages("pacman")
+library(pacman)
+
+p_load(tidyverse,magrittr, #general cleaning and piping
+       stringr, #string manipulation
+       lubridate, #I hate dates
+       feather,#nimble files
+       DataExplorer, #check missings
+       ggplot2,plotly, #gen viz
+       sf,mapview,#maps
+       prettydoc,
+       zoo) #rmd layout
+
+covid_pop_df <- read_feather("data/covid_pop.feather")
+```
+
+
+
+
+```{r}
+m_covid <- covid_pop_df %>%
+  mutate(day = row_number()) %>%
+  group_by(date,day) %>%
+  dplyr::summarise(#confirmed = sum(confirmed),
+                   deaths = sum(deaths))
+
+train_spl <- createDataPartition(m_covid$deaths ,p=0.7,list = F)
+train <- m_covid[train_spl,] %>% as.data.frame()  #have to use this type of dataframe here to 'untibble' for smote
+test <- m_covid[-train_spl,] %>% as.data.frame()
+
+
+ctrl <- trainControl(method = "boot")
+
+model      <- train(deaths ~ day, 
+                    data=train, 
+                    method = "glmnet",
+                    trControl = ctrl,
+                    metric = "RMSE"
+                    ) 
+model
+
+pred_test = predict(model,newdata = test)
+pred_test_accuracy = round(mean(pred_test == test$deaths)*100,2)
+
+days_ahead = 120
+
+p_dead = predict(model, data.frame(day=1:(dim(x)[1]+days_ahead))) 
+
+```
+
+
+# Credits
+
+I used these sources to build the graphics in this report:
+
+* Maps: https://rstudio-pubs-static.s3.amazonaws.com/259095_2f8cb24b43284692a8af916bd447931d.html
+* Plotly in R: https://plotly.com/r/line-charts/ 
+* Sub Plots: https://stackoverflow.com/questions/56267164/r-plotly-subplot-with-table
+
+<div style="position: fixed; bottom: 15px; right:10px;">
+  <div id="feedback"><a href="https://github.com/cluelessgumshoe/explore_covid"> <B>SOURCE CODE</B></a></div>
+</div>
+
+<small><i>Report Date: `r Sys.Date()`</i>
