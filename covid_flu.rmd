@@ -101,7 +101,7 @@ fig1
 
 # Cause of Death (US)
 
-## How does the reported COVID-19 data compare to other casues of death?^[Data Source: https://www.cdc.gov/nchs/pressroom/stats_of_the_states.htm]
+## How does the reported COVID-19 data compare to other causes of death?^[Data Source: https://www.cdc.gov/nchs/pressroom/stats_of_the_states.htm]
 
 ```{r}
 #read in several more 
@@ -132,7 +132,7 @@ rm(list = c("cancer","diabetes","firearm",
 
 ```
 
-Consideration must be given to the fact that COVID-19 data only represents a portion of a year whereas the other casuses have all data from 2018 included.  Data was adjusted to represent rates per 100,000 population^[Data Source: https://data.worldbank.org/indicator/sp.pop.totl].  To do this the total number of deaths was divided by the number of groups of 100,000 persons present in the population using the 2018 US population estimate of `r paste0(covid_other_deaths$pop2018[1])`.
+Consideration must be given to the fact that COVID-19 data only represents a portion of a year whereas the other causes have all data from 2018 included.  Data was adjusted to represent rates per 100,000 population^[Data Source: https://data.worldbank.org/indicator/sp.pop.totl].  To do this the total number of deaths was divided by the number of groups of 100,000 persons present in the population using the 2018 US population estimate of `r paste0(covid_other_deaths$pop2018[1])`.
 
 
 ```{r}
@@ -328,7 +328,7 @@ fig3 <- fig3 %>% add_trace(y = ~`United Kingdom`, name = "United Kingdom", mode 
 fig3 <- fig3 %>% add_trace(y = ~US, name = "United States", mode = 'line',line = list(color = 'blue', width = 2))
 fig3 <- fig3 %>% layout(title = "Confirmed Cases by Virus Day",
                   xaxis = list(title = "Day of Virus"),
-                  yaxis = list (title = "# of Confirmed Cases"))
+                  yaxis = list (title = "% Country Population Confirmed"))
 
 fig3
 ```
@@ -472,6 +472,33 @@ covid_pop_v4 <- covid_pop_df %>%
   rename(country = "country_region") %>%
   group_by(country) %>%
   filter(perc_ctry_dead == max(perc_ctry_dead)) %>%
+  mutate(perc_ctry_dead = perc_ctry_dead) %>%
+  distinct() %>%
+  mutate_all(as.numeric) %>%
+  left_join(cia_med_age,by = "country") %>%
+  mutate(age = age)
+  
+fig5 <- plot_ly(covid_pop_v4, x = ~perc_ctry_dead, y = ~age, type = 'scatter',mode = 'markers', color = ~country,colors = c("black","yellow","orange","green","red","pink","purple","blue"))
+fig5 <- fig5 %>% layout(title = "Age vs % Total Population Dead",
+                  xaxis = list(title = "% dead"),
+                  yaxis = list (title = "age"),
+                  yaxis2 = list(overlaying = "y", side = "right"))
+fig5 
+```
+</center>
+
+<br>
+<br>
+
+<center>
+```{r}
+covid_pop_v4 <- covid_pop_df %>% 
+  select(country_region, perc_ctry_dead) %>% 
+  filter(country_region %in% c("US","Italy","China","Germany","Switzerland","Ireland","Sweden","United Kingdom")) %>% 
+  mutate(perc_ctry_dead = as.numeric(perc_ctry_dead)) %>%
+  rename(country = "country_region") %>%
+  group_by(country) %>%
+  filter(perc_ctry_dead == max(perc_ctry_dead)) %>%
   mutate(perc_ctry_dead = log(perc_ctry_dead)) %>%
   distinct() %>%
   mutate_all(as.numeric) %>%
@@ -481,7 +508,7 @@ covid_pop_v4 <- covid_pop_df %>%
 fig5 <- plot_ly(covid_pop_v4, x = ~perc_ctry_dead, y = ~age, type = 'scatter',mode = 'markers', color = ~country,colors = c("black","yellow","orange","green","red","pink","purple","blue"))
 fig5 <- fig5 %>% layout(title = "Age vs % Total Population Dead",
                   xaxis = list(title = "log(% dead)"),
-                  yaxis = list (title = "log(age)"),
+                  yaxis = list (title = "(logage)"),
                   yaxis2 = list(overlaying = "y", side = "right"))
 fig5 
 ```
